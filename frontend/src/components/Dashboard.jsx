@@ -4,8 +4,10 @@ import { supabase } from '../supabaseClient'
 export default function Dashboard({ user, setGameId }) {
   const [leaderboard, setLeaderboard] = useState([])
   const [waitingGames, setWaitingGames] = useState([])
+  const [loadingSession, setLoadingSession] = useState(true)
 
   useEffect(() => {
+    checkActiveSession()
     fetchLeaderboard()
     fetchWaitingGames()
 
@@ -16,6 +18,21 @@ export default function Dashboard({ user, setGameId }) {
 
     return () => { supabase.removeChannel(gamesSub) }
   }, [])
+
+  // CONTROLLO RICONNESSIONE AUTOMATICA
+  const checkActiveSession = async () => {
+    const { data } = await supabase.from('games')
+      .select('id')
+      .in('status', ['waiting', 'playing']) // Cerca partite in attesa o in corso
+      .or(`player1_id.eq.${user.id},player2_id.eq.${user.id}`)
+      .maybeSingle()
+    
+    if (data) {
+      setGameId(data.id) // Se trova una partita, forza subito il reindirizzamento
+    } else {
+      setLoadingSession(false) // Altrimenti ferma il caricamento e mostra la dashboard
+    }
+  }
 
   const fetchLeaderboard = async () => {
     const { data } = await supabase.from('profiles').select('*').order('wins', { ascending: false }).limit(10)
@@ -30,7 +47,9 @@ export default function Dashboard({ user, setGameId }) {
   const createGame = async () => {
     const { data, error } = await supabase.from('games').insert([{ 
       player1_id: user.id, 
-      turn_id: user.id 
+      turn_id: user.id,
+      status: 'waiting',
+      board: ['', '', '', '', '', '', '', '', ''] // Inizializza subito la scacchiera vuota
     }]).select().single()
 
     if (error) console.error(error)
@@ -44,6 +63,9 @@ export default function Dashboard({ user, setGameId }) {
       
     if (!error) setGameId(id)
   }
+
+  // Schermata di caricamento durante la ricerca di partite attive
+  if (loadingSession) return <div style={{ textAlign: 'center', marginTop: 50 }}>Ricerca partita in corso...</div>
 
   return (
     <div>

@@ -36,7 +36,8 @@ export default function GameRoom({ user, gameId, setGameId }) {
   }
 
   const handleCellClick = async (index) => {
-    if (!game || game.status !== 'playing' || game.turn_id !== user.id || game.board[index] !== '') return
+    // Controlla anche che la board esista per evitare crash se i dati non sono sincronizzati
+    if (!game || !game.board || game.status !== 'playing' || game.turn_id !== user.id || game.board[index] !== '') return
 
     const mySymbol = game.player1_id === user.id ? 'X' : 'O'
     const newBoard = [...game.board]
@@ -62,7 +63,7 @@ export default function GameRoom({ user, gameId, setGameId }) {
     await supabase.from('games').update(updates).eq('id', gameId)
   }
 
-  if (!game) return <div>Caricamento...</div>
+  if (!game || !game.board) return <div style={{ textAlign: 'center', marginTop: 50 }}>Sincronizzazione partita...</div>
 
   const isPlayer1 = game.player1_id === user.id
   const mySymbol = isPlayer1 ? 'X' : 'O'
