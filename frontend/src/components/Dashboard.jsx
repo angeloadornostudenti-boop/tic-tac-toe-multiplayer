@@ -7,6 +7,10 @@ export default function Dashboard({ user, setGameId }) {
   const [loadingSession, setLoadingSession] = useState(true)
 
   useEffect(() => {
+    // FONDAMENTALE: Se Supabase sta ancora caricando la sessione dell'utente, 
+    // non fare nulla e aspetta il prossimo ciclo.
+    if (!user) return 
+
     checkActiveSession()
     fetchLeaderboard()
     fetchWaitingGames()
@@ -16,9 +20,11 @@ export default function Dashboard({ user, setGameId }) {
       .subscribe()
 
     return () => { supabase.removeChannel(gamesSub) }
-  }, [])
+  }, [user]) // <--- AGGIUNTO 'user' QUI: il controllo si attiva solo quando l'utente è pronto
 
   const checkActiveSession = async () => {
+    if (!user) return
+
     const { data } = await supabase.from('games')
       .select('id')
       .in('status', ['waiting', 'playing']) 
@@ -26,9 +32,9 @@ export default function Dashboard({ user, setGameId }) {
       .maybeSingle()
     
     if (data) {
-      setGameId(data.id) 
+      setGameId(data.id) // Ti forza a rientrare nella stanza di gioco
     } else {
-      setLoadingSession(false) 
+      setLoadingSession(false) // Mostra la dashboard solo se non sei in nessuna partita
     }
   }
 
@@ -62,7 +68,7 @@ export default function Dashboard({ user, setGameId }) {
     if (!error) setGameId(id)
   }
 
-  if (loadingSession) return <div style={{ textAlign: 'center', marginTop: 50 }}>Ricerca partita in corso...</div>
+  if (loadingSession) return <div style={{ textAlign: 'center', marginTop: 50 }}>Verifica sessione di gioco...</div>
 
   return (
     <div>
