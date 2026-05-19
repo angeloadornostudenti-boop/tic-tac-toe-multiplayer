@@ -11,7 +11,6 @@ export default function Dashboard({ user, setGameId }) {
     fetchLeaderboard()
     fetchWaitingGames()
 
-    // Sottoscrizione per aggiornamenti partite in attesa
     const gamesSub = supabase.channel('public:games')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'games' }, fetchWaitingGames)
       .subscribe()
@@ -19,18 +18,17 @@ export default function Dashboard({ user, setGameId }) {
     return () => { supabase.removeChannel(gamesSub) }
   }, [])
 
-  // CONTROLLO RICONNESSIONE AUTOMATICA
   const checkActiveSession = async () => {
     const { data } = await supabase.from('games')
       .select('id')
-      .in('status', ['waiting', 'playing']) // Cerca partite in attesa o in corso
+      .in('status', ['waiting', 'playing']) 
       .or(`player1_id.eq.${user.id},player2_id.eq.${user.id}`)
       .maybeSingle()
     
     if (data) {
-      setGameId(data.id) // Se trova una partita, forza subito il reindirizzamento
+      setGameId(data.id) 
     } else {
-      setLoadingSession(false) // Altrimenti ferma il caricamento e mostra la dashboard
+      setLoadingSession(false) 
     }
   }
 
@@ -49,7 +47,7 @@ export default function Dashboard({ user, setGameId }) {
       player1_id: user.id, 
       turn_id: user.id,
       status: 'waiting',
-      board: ['', '', '', '', '', '', '', '', ''] // Inizializza subito la scacchiera vuota
+      board: ['', '', '', '', '', '', '', '', ''] 
     }]).select().single()
 
     if (error) console.error(error)
@@ -64,7 +62,6 @@ export default function Dashboard({ user, setGameId }) {
     if (!error) setGameId(id)
   }
 
-  // Schermata di caricamento durante la ricerca di partite attive
   if (loadingSession) return <div style={{ textAlign: 'center', marginTop: 50 }}>Ricerca partita in corso...</div>
 
   return (

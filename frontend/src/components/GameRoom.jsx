@@ -36,7 +36,6 @@ export default function GameRoom({ user, gameId, setGameId }) {
   }
 
   const handleCellClick = async (index) => {
-    // Controlla anche che la board esista per evitare crash se i dati non sono sincronizzati
     if (!game || !game.board || game.status !== 'playing' || game.turn_id !== user.id || game.board[index] !== '') return
 
     const mySymbol = game.player1_id === user.id ? 'X' : 'O'
@@ -61,6 +60,52 @@ export default function GameRoom({ user, gameId, setGameId }) {
     }
 
     await supabase.from('games').update(updates).eq('id', gameId)
+  }
+
+  // GESTIONE USCITA E RESA A TAVOLINO
+  const handleLeaveGame = async () => {
+    if (!game) return
+
+    // Scenario 1: La partita è già finita, torna indietro normalmente
+    if (game.status === 'finished') {
+      setGameId(null)
+      return
+    }
+
+    // Scenario 2: Sei da solo in attesa, annulla la partita
+    if (game.status === 'waiting') {
+      const confirmLeave = window.confirm("Vuoi annullare la ricerca e tornare alla dashboard?")
+      if (!confirmLeave) return
+
+      await supabase.from('games').update({ status: 'finished' }).eq('id', gameId)
+      setGameId(null)
+      return
+    }
+
+    // Scenario 3: La partita è in corso, l'utente si arrende
+    if (game.status === 'playing') {
+      const confirmSurrender = window.confirm("Attenzione! Se torni alla dashboard adesso ti arrenderai e la vittoria andrà al tuo avversario. Vuoi continuare?")
+      if (!confirmSurrender) return
+
+      // Determina l'ID dell'avversario
+      const opponentId = game.player1_id === user.id ? game.player2_id : game.player1_id
+
+      // Chiudi la partita assegnando il vincitore
+      await supabase.from('games').update({
+        status: 'finished',
+        winner_id: opponentId
+      }).eq('id', gameId)
+
+      // Assegna +1 vittoria all'avversario nel suo profilo
+      if (opponentId) {
+        const { data: profile } = await supabase.from('profiles').select('wins').eq('id', opponentId).single()
+        if (profile) {
+          await supabase.from('profiles').update({ wins: profile.wins + 1 }).eq('id', opponentId)
+        }
+      }
+
+      setGameId(null)
+    }
   }
 
   if (!game || !game.board) return <div style={{ textAlign: 'center', marginTop: 50 }}>Sincronizzazione partita...</div>
@@ -95,7 +140,9 @@ export default function GameRoom({ user, gameId, setGameId }) {
         ))}
       </div>
 
-      <button onClick={() => setGameId(null)}>Torna alla Dashboard</button>
+      <button onClick={handleLeaveGame} style={{ marginTop: 15, background: game.status !== 'finished' ? '#e11d48' : '#4b5563' }}>
+        {game.status === 'finished' ? 'Torna alla Dashboard' : 'Arrenditi ed Esci'}
+      </button>
     </div>
   )
 }
