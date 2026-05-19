@@ -7,10 +7,13 @@ export default function Dashboard({ user, setGameId }) {
   const [loadingSession, setLoadingSession] = useState(true)
 
   useEffect(() => {
-    // FONDAMENTALE: Se Supabase sta ancora caricando la sessione dell'utente, 
-    // non fare nulla e aspetta il prossimo ciclo.
-    if (!user) return 
+    // Se l'utente non è ancora stato caricato da Supabase, aspetta
+    if (!user) {
+      console.log("Dashboard: In attesa dell'utente...")
+      return 
+    }
 
+    console.log("Dashboard: Utente pronto, avvio controlli per:", user.email)
     checkActiveSession()
     fetchLeaderboard()
     fetchWaitingGames()
@@ -20,21 +23,35 @@ export default function Dashboard({ user, setGameId }) {
       .subscribe()
 
     return () => { supabase.removeChannel(gamesSub) }
-  }, [user]) // <--- AGGIUNTO 'user' QUI: il controllo si attiva solo quando l'utente è pronto
+  }, [user]) // Si riattiva non appena 'user' passa da null a un oggetto valido
 
+  // NUOVA FUNZIONE DI CONTROLLO RICONNESSIONE ROBUSTA
   const checkActiveSession = async () => {
     if (!user) return
 
-    const { data } = await supabase.from('games')
-      .select('id')
+    console.log("Controllo se l'utente ha partite attive nel DB...")
+
+    // Rimosso .maybeSingle() per evitare crash in caso di partite multiple rimaste appese
+    const { data, error } = await supabase.from('games')
+      .select('id, status')
       .in('status', ['waiting', 'playing']) 
       .or(`player1_id.eq.${user.id},player2_id.eq.${user.id}`)
-      .maybeSingle()
     
-    if (data) {
-      setGameId(data.id) // Ti forza a rientrare nella stanza di gioco
+    if (error) {
+      console.error("Errore critico durante il controllo sessione:", error)
+      setLoadingSession(false)
+      return
+    }
+
+    console.log("Risultato query partite attive:", data)
+
+    // Se trova una o più partite attive, prende la prima disponibile ed entra
+    if (data && data.length > 0) {
+      console.log("Partita attiva trovata! Tento il rientro automatico nell'ID:", data[0].id)
+      setGameId(data[0].id) 
     } else {
-      setLoadingSession(false) // Mostra la dashboard solo se non sei in nessuna partita
+      console.log("Nessuna partita in corso per questo utente. Mostro la Dashboard.")
+      setLoadingSession(false) 
     }
   }
 
@@ -68,7 +85,14 @@ export default function Dashboard({ user, setGameId }) {
     if (!error) setGameId(id)
   }
 
-  if (loadingSession) return <div style={{ textAlign: 'center', marginTop: 50 }}>Verifica sessione di gioco...</div>
+  if (loadingSession) {
+    return (
+      <div style={{ textAlign: 'center', marginTop: 50 }}>
+        <h3>Verifica sessione di gioco in corso...</h3>
+        <p style={{ color: '#888' }}>Se rimani bloccato qui, premi F12 e controlla la Console.</p>
+      </div>
+    )
+  }
 
   return (
     <div>
